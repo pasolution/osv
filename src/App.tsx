@@ -20,6 +20,7 @@ function App() {
   const [selectedSchema, setSelectedSchema] = useState<string | null>(null)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [schemaLoading, setSchemaLoading] = useState(false)
 
   // Fetch the directory tree from GitLab API
   useEffect(() => {
@@ -260,7 +261,10 @@ function App() {
               <FileJson size={16} className="file-icon" />
               <button
                 className={`node-name selectable ${selectedSchema === node.path ? 'selected' : ''}`}
-                onClick={() => setSelectedSchema(node.path)}
+                onClick={() => {
+                  setSelectedSchema(node.path)
+                  setSchemaLoading(true)
+                }}
               >
                 {node.name}
               </button>
@@ -311,10 +315,18 @@ function App() {
               <div className="viewer-header">
                 <h3>{selectedSchema.split('/').pop()}</h3>
               </div>
+              {schemaLoading && (
+                <div className="viewer-loading">
+                  <Loader className="spinner" />
+                  <p>Loading schema...</p>
+                </div>
+              )}
               <iframe
                 src={getSchemaViewerUrl()}
                 title="JSON Schema Viewer"
                 className="schema-iframe"
+                style={{ display: schemaLoading ? 'none' : 'flex' }}
+                onLoad={() => setSchemaLoading(false)}
               />
             </>
           ) : (
