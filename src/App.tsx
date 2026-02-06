@@ -53,20 +53,8 @@ function App() {
       const treeStructure = buildTreeStructure(allItems)
       setTree(treeStructure)
 
-      // Auto-expand all folders on initial load
-      const allNodeIds = new Set<string>()
-      const collectNodeIds = (nodes: TreeNode[]) => {
-        nodes.forEach((node) => {
-          if (node.type === 'tree') {
-            allNodeIds.add(node.id)
-            if (node.children) {
-              collectNodeIds(node.children)
-            }
-          }
-        })
-      }
-      collectNodeIds(treeStructure)
-      setExpandedNodes(allNodeIds)
+      // Collapse all folders on initial load
+      setExpandedNodes(new Set())
     } catch (error) {
       console.error('Error fetching repository tree:', error)
       setTree([])
@@ -75,11 +63,116 @@ function App() {
     }
   }
 
+  // Extract schema base path and version number from a path
+  const parseSchemaVersion = (path: string): { basePath: string; version: string } => {
+    // For files like: Generated/master-data/BHARun.2.1.0.json
+    // Extract the version from the filename before the .json extension
+    // Match pattern: any characters, then dot, then version numbers (with dots), then .json
+    const fileNameWithVersion = /^(.+?)\.(\d+(?:\.\d+)*)\.json$/
+    const fileName = path.split('/').pop() || ''
+    const match = fileName.match(fileNameWithVersion)
+    
+    if (match) {
+      const versionStr = match[2]
+      // Create basePath by replacing the full filename with just the base name
+      const basePath = path.replace(fileName, match[1] + '.json')
+      return { basePath, version: versionStr }
+    }
+    
+    // Fallback: Try to match version pattern in folder structure like /v1.0.0/
+    const folderVersionRegex = /\/(v\d+\.\d+(?:\.\d+)?)(?:\/|$)/
+    const folderMatch = path.match(folderVersionRegex)
+    
+    if (folderMatch) {
+      const versionStr = folderMatch[1]
+      const basePath = path.replace(folderVersionRegex, '/VERSION_PLACEHOLDER/')
+      return { basePath, version: versionStr }
+    }
+    
+    return { basePath: path, version: '0.0.0' }
+  }
+
+  // Compare semantic versions
+  const compareVersions = (v1: string, v2: string): number => {
+    const parseVersion = (v: string) => {
+      const parts = v.replace(/^v/, '').split('.').map(Number)
+      return { major: parts[0] || 0, minor: parts[1] || 0, patch: parts[2] || 0 }
+    }
+    
+    const ver1 = parseVersion(v1)
+    const ver2 = parseVersion(v2)
+    
+    if (ver1.major !== ver2.major) return ver1.major - ver2.major
+    if (ver1.minor !== ver2.minor) return ver1.minor - ver2.minor
+    return ver1.patch - ver2.patch
+  }
+
+  // Filter items to keep only the most recent version of each schema
+  const filterLatestVersions = (items: any[]): any[] => {
+    // First, separate blobs (files) from trees (folders)
+    const blobs = items.filter(item => item.type === 'blob')
+    const trees = items.filter(item => item.type === 'tree')
+    
+    console.log('Total items before filtering:', items.length)
+    console.log('Blobs (files):', blobs.length)
+    console.log('Sample blob paths:', blobs.slice(0, 5).map(b => b.path))
+    
+    // Group blobs by their base schema path (without version)
+    const schemaMap = new Map<string, any[]>()
+    
+    blobs.forEach((blob) => {
+      const { basePath, version } = parseSchemaVersion(blob.path)
+      console.log(`Blob: ${blob.path} -> basePath: ${basePath}, version: ${version}`)
+      if (!schemaMap.has(basePath)) {
+        schemaMap.set(basePath, [])
+      }
+      schemaMap.get(basePath)!.push(blob)
+    })
+    
+    console.log('Unique schemas found:', schemaMap.size)
+    
+    // For each schema group, keep only the one with the latest version
+    const filteredBlobs: any[] = []
+    schemaMap.forEach((group, basePath) => {
+      if (group.length === 1) {
+        filteredBlobs.push(group[0])
+      } else {
+        console.log(`Schema ${basePath} has ${group.length} versions:`, group.map(g => g.path))
+        // Sort by version and keep the latest
+        const sorted = group.sort((a, b) => {
+          const { version: v1 } = parseSchemaVersion(a.path)
+          const { version: v2 } = parseSchemaVersion(b.path)
+          return compareVersions(v2, v1) // descending order
+        })
+        console.log(`Keeping latest: ${sorted[0].path}`)
+        filteredBlobs.push(sorted[0])
+      }
+    })
+    
+    // Collect all folder paths that are parents of kept blobs
+    const requiredFolderPaths = new Set<string>()
+    filteredBlobs.forEach((blob) => {
+      const pathParts = blob.path.split('/')
+      for (let i = 1; i < pathParts.length; i++) {
+        const folderPath = pathParts.slice(0, i).join('/')
+        requiredFolderPaths.add(folderPath)
+      }
+    })
+    
+    // Keep only folders that are parents of kept blobs
+    const filteredTrees = trees.filter(tree => requiredFolderPaths.has(tree.path))
+    
+    console.log('Total items after filtering:', filteredBlobs.length + filteredTrees.length)
+    return [...filteredTrees, ...filteredBlobs]
+  }
+
   const buildTreeStructure = (items: any[]): TreeNode[] => {
+    // Filter to keep only the latest version of each schema
+    const filteredItems = filterLatestVersions(items)
     const allNodes = new Map<string, TreeNode>()
 
     // Create all nodes first - sort by path depth to process parents before children
-    const sortedItems = items.sort((a, b) => 
+    const sortedItems = filteredItems.sort((a, b) => 
       a.path.split('/').length - b.path.split('/').length
     )
 
