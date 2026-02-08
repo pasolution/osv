@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, FileJson, Folder, Loader } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronDown, ChevronRight, FileJson, Folder, Loader, Search, X } from 'lucide-react'
 import './App.css'
 
 interface TreeNode {
@@ -21,11 +21,34 @@ function App() {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [schemaLoading, setSchemaLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchActive, setSearchActive] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch the directory tree from GitLab API
   useEffect(() => {
     fetchRepositoryTree()
   }, [])
+
+  // Focus search input when activated
+  useEffect(() => {
+    if (searchActive && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [searchActive])
+
+  // Handle Escape key to close search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && searchActive) {
+        setSearchQuery('')
+        setSearchActive(false)
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [searchActive])
 
   const fetchRepositoryTree = async () => {
     try {
@@ -230,6 +253,36 @@ function App() {
     setExpandedNodes(newExpanded)
   }
 
+  // Filter tree nodes based on search query
+  const filterTreeBySearch = (nodes: TreeNode[], query: string): TreeNode[] => {
+    if (!query.trim()) return nodes
+
+    const lowerQuery = query.toLowerCase()
+    
+    return nodes
+      .map((node) => {
+        const nameMatches = node.name.toLowerCase().includes(lowerQuery)
+        let filteredChildren: TreeNode[] = []
+        
+        if (node.children) {
+          filteredChildren = filterTreeBySearch(node.children, query)
+        }
+        
+        // Include this node if:
+        // 1. Its name matches the query, OR
+        // 2. Any of its descendants match (children is not empty after filtering)
+        if (nameMatches || filteredChildren.length > 0) {
+          return {
+            ...node,
+            children: filteredChildren.length > 0 ? filteredChildren : node.children
+          }
+        }
+        
+        return null
+      })
+      .filter((node): node is TreeNode => node !== null)
+  }
+
   const getSchemaViewerUrl = (): string => {
     if (!selectedSchema) return ''
     const schemaUrl = `${RAW_URL_BASE}/${selectedSchema}`
@@ -294,7 +347,36 @@ function App() {
       <div className="app-container">
         <aside className="sidebar">
           <div className="sidebar-header">
-            <h2>Schemas</h2>
+            {!searchActive && <h2>Schemas</h2>}
+            {searchActive ? (
+              <div className="search-input-wrapper">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search schemas..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                <button
+                  className="search-close-btn"
+                  onClick={() => {
+                    setSearchQuery('')
+                    setSearchActive(false)
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ) : (
+              <button
+                className="search-btn"
+                onClick={() => setSearchActive(true)}
+                title="Search schemas"
+              >
+                <Search size={20} />
+              </button>
+            )}
           </div>
           <nav className="tree-container">
             {loading ? (
@@ -305,7 +387,7 @@ function App() {
             ) : tree.length === 0 ? (
               <div className="empty">No schemas found</div>
             ) : (
-              renderTree(tree)
+              renderTree(filterTreeBySearch(tree, searchQuery))
             )}
           </nav>
         </aside>

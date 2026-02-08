@@ -49,6 +49,11 @@
   padding: 1rem;
   border-bottom: 1px solid #333;
   background-color: #2a2a2a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3.5rem;
+  box-sizing: border-box;
 }
 
 .sidebar-header h2 {
@@ -58,6 +63,74 @@
   color: #a0a0a0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.search-btn {
+  background: none;
+  border: none;
+  color: #888;
+  padding: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.search-btn:hover {
+  color: #aaa;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background-color: #333;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  box-sizing: border-box;
+}
+
+.search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  padding: 0.4rem;
+  font-size: 0.9rem;
+  outline: none;
+  min-width: 0;
+}
+
+.search-input::placeholder {
+  color: #888;
+}
+
+.search-close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.search-close-btn:hover {
+  color: #aaa;
 }
 
 .tree-container {
