@@ -19,6 +19,7 @@ function App() {
   const [tree, setTree] = useState<TreeNode[]>([])
   const [selectedSchema, setSelectedSchema] = useState<string | null>(null)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [preSearchExpandedNodes, setPreSearchExpandedNodes] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -49,6 +50,50 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [searchActive])
+
+  // Handle search activation - save expanded state
+  useEffect(() => {
+    if (searchActive) {
+      setPreSearchExpandedNodes(new Set(expandedNodes))
+    }
+  }, [searchActive])
+
+  // Handle search query changes - expand/collapse folders
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      // Expand all parents of matching items
+      const allParentIds = new Set<string>()
+      
+      const collectParents = (nodes: TreeNode[]) => {
+        nodes.forEach((node) => {
+          const hasMatchingDescendant = checkForMatches(node)
+          if (hasMatchingDescendant && node.type === 'tree') {
+            allParentIds.add(node.id)
+          }
+          if (node.children) {
+            collectParents(node.children)
+          }
+        })
+      }
+      
+      collectParents(tree)
+      setExpandedNodes(allParentIds)
+    } else if (!searchActive) {
+      // Restore previous expanded state when search is cleared and not active
+      setExpandedNodes(preSearchExpandedNodes)
+    }
+  }, [searchQuery, tree, searchActive])
+
+  const checkForMatches = (node: TreeNode): boolean => {
+    const lowerQuery = searchQuery.toLowerCase()
+    if (node.name.toLowerCase().includes(lowerQuery)) {
+      return true
+    }
+    if (node.children) {
+      return node.children.some(child => checkForMatches(child))
+    }
+    return false
+  }
 
   const fetchRepositoryTree = async () => {
     try {
@@ -259,28 +304,26 @@ function App() {
 
     const lowerQuery = query.toLowerCase()
     
-    return nodes
-      .map((node) => {
-        const nameMatches = node.name.toLowerCase().includes(lowerQuery)
-        let filteredChildren: TreeNode[] = []
-        
-        if (node.children) {
-          filteredChildren = filterTreeBySearch(node.children, query)
-        }
-        
-        // Include this node if:
-        // 1. Its name matches the query, OR
-        // 2. Any of its descendants match (children is not empty after filtering)
-        if (nameMatches || filteredChildren.length > 0) {
-          return {
-            ...node,
-            children: filteredChildren.length > 0 ? filteredChildren : node.children
-          }
-        }
-        
-        return null
-      })
-      .filter((node): node is TreeNode => node !== null)
+    return nodes.reduce<TreeNode[]>((result, node) => {
+      const nameMatches = node.name.toLowerCase().includes(lowerQuery)
+      let filteredChildren: TreeNode[] = []
+      
+      if (node.children) {
+        filteredChildren = filterTreeBySearch(node.children, query)
+      }
+      
+      // Include this node if:
+      // 1. Its name matches the query, OR
+      // 2. Any of its descendants match (children is not empty after filtering)
+      if (nameMatches || filteredChildren.length > 0) {
+        result.push({
+          ...node,
+          children: filteredChildren.length > 0 ? filteredChildren : node.children
+        })
+      }
+      
+      return result
+    }, [])
   }
 
   const getSchemaViewerUrl = (): string => {
