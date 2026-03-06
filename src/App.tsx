@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronRight, FileJson, Folder, Loader, Search, X } from 'lucide-react'
+import SyntaxHighlighter from 'react-syntax-highlighter'
+import { atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs'
 import './App.css'
 
 interface TreeNode {
@@ -24,6 +26,8 @@ function App() {
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchActive, setSearchActive] = useState(false)
+  const [viewMode, setViewMode] = useState<'viewer' | 'raw'>('viewer')
+  const [rawJson, setRawJson] = useState<string>('')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch the directory tree from GitLab API
@@ -31,12 +35,58 @@ function App() {
     fetchRepositoryTree()
   }, [])
 
+  // Fetch raw JSON when viewing raw mode
+  useEffect(() => {
+    if (viewMode === 'raw' && selectedSchema) {
+      fetchRawJson()
+    }
+  }, [viewMode, selectedSchema])
+
+  // Hide loading when raw JSON content is ready
+  useEffect(() => {
+    if (viewMode === 'raw' && rawJson) {
+      setSchemaLoading(false)
+    }
+  }, [rawJson, viewMode])
+
+  const fetchRawJson = async () => {
+    if (!selectedSchema) return
+    try {
+      setSchemaLoading(true)
+      // Use GitLab API to fetch file content
+      const encodedPath = encodeURIComponent(selectedSchema)
+      const apiUrl = `${GITLAB_API}/projects/${GITLAB_PROJECT_ID}/repository/files/${encodedPath}/raw?ref=master`
+      const response = await fetch(apiUrl)
+      if (!response.ok) {
+        throw new Error('Failed to fetch raw JSON')
+      }
+      const text = await response.text()
+      // Parse and re-stringify to ensure valid JSON formatting
+      const json = JSON.parse(text)
+      setRawJson(JSON.stringify(json, null, 2))
+    } catch (error) {
+      console.error('Error fetching raw JSON:', error)
+      setRawJson('Error loading raw JSON')
+      setSchemaLoading(false)
+    }
+  }
+
   // Focus search input when activated
   useEffect(() => {
     if (searchActive && searchInputRef.current) {
       searchInputRef.current.focus()
     }
   }, [searchActive])
+
+  // Update browser tab title with schema name
+  useEffect(() => {
+    if (selectedSchema) {
+      const schemaName = selectedSchema.split('/').pop()?.replace('.json', '') || 'OSDU Schema Viewer'
+      document.title = schemaName
+    } else {
+      document.title = 'OSDU Schema Viewer'
+    }
+  }, [selectedSchema])
 
   // Handle Escape key to close search
   useEffect(() => {
@@ -360,6 +410,7 @@ function App() {
                 onClick={() => {
                   setSelectedSchema(node.path)
                   setSchemaLoading(true)
+                  setViewMode('viewer')
                 }}
               >
                 {node.name}
@@ -439,6 +490,16 @@ function App() {
             <>
               <div className="viewer-header">
                 <h3>{selectedSchema.split('/').pop()}</h3>
+                <button
+                  className="view-mode-btn"
+                  onClick={() => {
+                    setSchemaLoading(true)
+                    setViewMode(viewMode === 'viewer' ? 'raw' : 'viewer')
+                  }}
+                  title={`Switch to ${viewMode === 'viewer' ? 'raw JSON' : 'schema viewer'}`}
+                >
+                  {viewMode === 'viewer' ? 'JSON' : 'Viewer'}
+                </button>
               </div>
               {schemaLoading && (
                 <div className="viewer-loading">
@@ -446,13 +507,26 @@ function App() {
                   <p>Loading schema...</p>
                 </div>
               )}
-              <iframe
-                src={getSchemaViewerUrl()}
-                title="JSON Schema Viewer"
-                className="schema-iframe"
-                style={{ display: schemaLoading ? 'none' : 'flex' }}
-                onLoad={() => setSchemaLoading(false)}
-              />
+              {viewMode === 'viewer' ? (
+                <iframe
+                  src={getSchemaViewerUrl()}
+                  title="JSON Schema Viewer"
+                  className="schema-iframe"
+                  style={{ display: schemaLoading ? 'none' : 'flex' }}
+                  onLoad={() => setSchemaLoading(false)}
+                />
+              ) : (
+                <div className="raw-json-container" style={{ display: schemaLoading ? 'none' : 'block' }}>
+                  <SyntaxHighlighter
+                    language="json"
+                    style={atomOneLight}
+                    showLineNumbers={true}
+                    wrapLongLines={true}
+                  >
+                    {rawJson}
+                  </SyntaxHighlighter>
+                </div>
+              )}
             </>
           ) : (
             <div className="viewer-empty">
