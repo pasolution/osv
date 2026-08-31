@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronRight, FileJson, Folder, Loader, Search, X } from 'lucide-react'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs'
+import { Analytics } from '@vercel/analytics/react'
 import './App.css'
 
 interface TreeNode {
@@ -535,6 +536,7 @@ function App() {
           )}
         </main>
       </div>
+      <Analytics />
     </div>
   )
 }
