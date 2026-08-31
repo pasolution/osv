@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, FileJson, Folder, Loader, Search, X } from '
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs'
 import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import './App.css'
 
 interface TreeNode {
@@ -537,6 +538,7 @@ function App() {
         </main>
       </div>
       <Analytics />
+      <SpeedInsights />
     </div>
   )
 }
