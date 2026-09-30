@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronRight, FileJson, Folder, Loader, Search, X } from 'lucide-react'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs'
-import { Analytics } from '@vercel/analytics/react'
+import { Analytics, track } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import './App.css'
 
@@ -413,6 +413,12 @@ function App() {
                   setSelectedSchema(node.path)
                   setSchemaLoading(true)
                   setViewMode('viewer')
+                  // Track schema selection
+                  track('schema_selected', {
+                    schema_name: node.name,
+                    schema_path: node.path,
+                    timestamp: new Date().toISOString()
+                  })
                 }}
               >
                 {node.name}
@@ -451,7 +457,16 @@ function App() {
                   type="text"
                   placeholder="Search schemas..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    // Track search query
+                    if (e.target.value.trim()) {
+                      track('schema_search', {
+                        query: e.target.value,
+                        query_length: e.target.value.length
+                      })
+                    }
+                  }}
                   className="search-input"
                 />
                 <button
@@ -496,7 +511,14 @@ function App() {
                   className="view-mode-btn"
                   onClick={() => {
                     setSchemaLoading(true)
-                    setViewMode(viewMode === 'viewer' ? 'raw' : 'viewer')
+                    const newMode = viewMode === 'viewer' ? 'raw' : 'viewer'
+                    setViewMode(newMode)
+                    // Track view mode switch
+                    track('view_mode_switched', {
+                      schema_name: selectedSchema?.split('/').pop(),
+                      new_mode: newMode,
+                      previous_mode: viewMode
+                    })
                   }}
                   title={`Switch to ${viewMode === 'viewer' ? 'raw JSON' : 'schema viewer'}`}
                 >
