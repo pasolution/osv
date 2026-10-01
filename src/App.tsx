@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronRight, FileJson, Folder, Loader, Search, X } from 'lucide-react'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs'
-import { Analytics, track } from '@vercel/analytics/react'
+import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
+import { useAnalyzr } from './hooks/useAnalyzr'
 import './App.css'
 
 interface TreeNode {
@@ -20,6 +21,7 @@ const GENERATED_PATH = 'Generated'
 const RAW_URL_BASE = 'https://community.opengroup.org/osdu/data/data-definitions/-/raw/master'
 
 function App() {
+  const { trackSchemaSelected, trackViewModeSwitched, trackSchemaSearch } = useAnalyzr()
   const [tree, setTree] = useState<TreeNode[]>([])
   const [selectedSchema, setSelectedSchema] = useState<string | null>(null)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
@@ -414,11 +416,7 @@ function App() {
                   setSchemaLoading(true)
                   setViewMode('viewer')
                   // Track schema selection
-                  track('schema_selected', {
-                    schema_name: node.name,
-                    schema_path: node.path,
-                    timestamp: new Date().toISOString()
-                  })
+                  trackSchemaSelected(node.name, node.path)
                 }}
               >
                 {node.name}
@@ -461,10 +459,7 @@ function App() {
                     setSearchQuery(e.target.value)
                     // Track search query
                     if (e.target.value.trim()) {
-                      track('schema_search', {
-                        query: e.target.value,
-                        query_length: e.target.value.length
-                      })
+                      trackSchemaSearch(e.target.value)
                     }
                   }}
                   className="search-input"
@@ -514,11 +509,11 @@ function App() {
                     const newMode = viewMode === 'viewer' ? 'raw' : 'viewer'
                     setViewMode(newMode)
                     // Track view mode switch
-                    track('view_mode_switched', {
-                      schema_name: selectedSchema?.split('/').pop(),
-                      new_mode: newMode,
-                      previous_mode: viewMode
-                    })
+                    trackViewModeSwitched(
+                      selectedSchema?.split('/').pop() || 'Unknown',
+                      newMode,
+                      viewMode
+                    )
                   }}
                   title={`Switch to ${viewMode === 'viewer' ? 'raw JSON' : 'schema viewer'}`}
                 >
